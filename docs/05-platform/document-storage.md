@@ -264,7 +264,42 @@ Events emitted (outbox): `document.file.committed` `{ fileId, category, entityTy
   }
   ```
 
-  Deliberately narrow in three ways. It takes **no `tenantId`** — the tenant comes from context, per multi-tenancy §1 rule 2, so a platform caller cannot aggregate the wrong tenant by passing an argument. It returns **counts and bytes only**, never file names, owners, or paths, so the widest-privileged console in the system learns how much a tenant stores and nothing about what. And it is **the only port this module serves** — every other consumer of document metadata goes through the signed-URL flow, which is where the sensitive-read trail lives.
+  Deliberately narrow in three ways. It takes **no `tenantId`** — the tenant comes from context, per multi-tenancy §1 rule 2, so a platform caller cannot aggregate the wrong tenant by passing an argument. It returns **counts and bytes only**, never file names, owners, or paths, so the widest-privileged console in the system learns how much a tenant stores and nothing about what.
+
+  **`DocumentPort` — UC-DOC-004's port, declared 2026-08-10 with its first caller** (A-200, `hris-api` import-export). Four module documents (`announcement.md`, `training.md`, `expense-reimbursement.md`, `asset.md`) name a document port and none declares its shape, so none was built — the `EmployeePayrollPort` line of A-195. What changed is not that argument but its premise: UC-DOC-004 has always described a **worker write path** — *"workers write objects directly to the final path via the GCS SDK and insert `committed` rows in the same unit of work"* — and until import-export there was no worker to use it. That module generates an error workbook and an export output and reads back an uploaded one, and those four methods are defined entirely by this use case rather than guessed at.
+
+  ```ts
+  export const DOCUMENT_PORT = Symbol('DOCUMENT_PORT');
+
+  export interface GeneratedFileCommand {
+    category: string; entityType: string; entityId: string; fileName: string; mime: string;
+  }
+
+  export interface DocumentPort {
+    /** UC-DOC-004 — bytes to the final path, hashed and counted on the way past,
+     *  and a `committed` row in the same unit of work. No staging: there is no
+     *  uploader to distrust, and the digest and size are measured rather than declared. */
+    storeGenerated(command: GeneratedFileCommand, write: (sink: Writable) => Promise<void>): Promise<FileRow>;
+    /** `null` for an unknown, deleted, or still-staged file. */
+    find(fileId: string): Promise<FileRow | null>;
+    /** Bytes of a committed file, for a worker that parses them (import-export UC-IMP-002).
+     *  Not a client path — ADR-0009's "the API never proxies bytes" binds the metadata
+     *  plane between a client and storage, and nothing here reaches an HTTP response. */
+    openContent(fileId: string): Promise<Readable | null>;
+    /** import-export UC-IMP-001's re-parent: a slot is user-parented before the job
+     *  that will own it exists. The entity moves and nothing else — a method that could
+     *  also change the category would be a way around the registry. */
+    reparent(fileId: string, ref: EntityRef): Promise<void>;
+    /** Retires a file the calling module owns, releasing it to `cron.document.purge`.
+     *  Deliberately **not** gated by `clientDeletable`: that flag answers "may a user
+     *  delete this" on UC-DOC-005's endpoint, and the module whose retention window just
+     *  expired is a different actor (import-export §12 collects its files "via
+     *  document-storage"). */
+    softDelete(fileId: string): Promise<void>;
+  }
+  ```
+
+  **No download minting here**, and that is the boundary that keeps §13's earlier claim true: every client read still goes through `GET /documents/{fileId}/download-url`, where the gate, the category TTL and the sensitive-read trail live. A port that minted URLs would be a second access path with none of it.
 - **Settings registered this session:** `document.expiry_reminder_days` (default 30), `document.employee_document_max_size_mb` (10, tighten-only), `document.receipt_max_size_mb` (10, tighten-only) → settings §4.2.
 
 ## 14. Test Scenarios
