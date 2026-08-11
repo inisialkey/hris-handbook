@@ -1,0 +1,369 @@
+{
+  "artifact": "holiday-resolution",
+  "rule": "BR-HOL-002 — most-specific-wins per (date, kind): branch > company > tenant-wide",
+  "owner": "docs/06-modules/holiday.md §4.2",
+  "consumers": [
+    "hris-api — src/modules/holiday/domain/resolve.ts",
+    "hris-mobile — shared Dart domain code over the local mirror (BR-HOL-010)"
+  ],
+  "note": "The one vector file that lives in the handbook rather than beside its implementation, because ADR-0018 decision 7 puts a file here exactly when more than one implementation consumes it, and holiday resolution is the only rule the handbook states is implemented twice. Nothing here is statutory: it carries no rate set, and every name, id and date below is synthetic test data rather than a claim about any calendar year. Two implementations, one rule, one set of expectations.",
+  "vectors": [
+    {
+      "name": "no rows at all",
+      "source": "holiday.md §9 — zero-holiday tenant: every date resolves working",
+      "input": {
+        "scope": { "companyId": "c1", "branchId": "b1" },
+        "date": "2026-05-01",
+        "rows": []
+      },
+      "expected": { "working": true }
+    },
+    {
+      "name": "tenant-wide day, no narrower rows",
+      "source": "holiday.md BR-HOL-001 — a row adds a non-working day at its scope",
+      "input": {
+        "scope": { "companyId": "c1", "branchId": "b1" },
+        "date": "2026-05-01",
+        "rows": [
+          {
+            "companyId": null,
+            "branchId": null,
+            "date": "2026-05-01",
+            "name": "National day A",
+            "kind": "national",
+            "observed": true
+          }
+        ]
+      },
+      "expected": { "working": false, "holiday": { "kind": "national", "name": "National day A" } }
+    },
+    {
+      "name": "company addition, invisible to another company",
+      "source": "holiday.md BR-HOL-002 — resolution walks the caller's scope chain",
+      "input": {
+        "scope": { "companyId": "c2", "branchId": "b9" },
+        "date": "2026-06-10",
+        "rows": [
+          {
+            "companyId": "c1",
+            "branchId": null,
+            "date": "2026-06-10",
+            "name": "Company anniversary",
+            "kind": "custom",
+            "observed": true
+          }
+        ]
+      },
+      "expected": { "working": true }
+    },
+    {
+      "name": "branch addition beats nothing broader",
+      "source": "holiday.md BR-HOL-001",
+      "input": {
+        "scope": { "companyId": "c1", "branchId": "b1" },
+        "date": "2026-06-10",
+        "rows": [
+          {
+            "companyId": "c1",
+            "branchId": "b1",
+            "date": "2026-06-10",
+            "name": "Branch founding day",
+            "kind": "custom",
+            "observed": true
+          }
+        ]
+      },
+      "expected": {
+        "working": false,
+        "holiday": { "kind": "custom", "name": "Branch founding day" }
+      }
+    },
+    {
+      "name": "company negates a tenant-wide day",
+      "source": "holiday.md BR-HOL-001 — observed=false negates a broader-scope day",
+      "input": {
+        "scope": { "companyId": "c1", "branchId": "b1" },
+        "date": "2026-05-01",
+        "rows": [
+          {
+            "companyId": null,
+            "branchId": null,
+            "date": "2026-05-01",
+            "name": "National day A",
+            "kind": "national",
+            "observed": true
+          },
+          {
+            "companyId": "c1",
+            "branchId": null,
+            "date": "2026-05-01",
+            "name": "National day A",
+            "kind": "national",
+            "observed": false
+          }
+        ]
+      },
+      "expected": { "working": true }
+    },
+    {
+      "name": "branch re-affirms a day its company negated",
+      "source": "holiday.md §9 — most-specific-wins handles both directions symmetrically",
+      "input": {
+        "scope": { "companyId": "c1", "branchId": "b1" },
+        "date": "2026-05-01",
+        "rows": [
+          {
+            "companyId": null,
+            "branchId": null,
+            "date": "2026-05-01",
+            "name": "National day A",
+            "kind": "national",
+            "observed": true
+          },
+          {
+            "companyId": "c1",
+            "branchId": null,
+            "date": "2026-05-01",
+            "name": "National day A",
+            "kind": "national",
+            "observed": false
+          },
+          {
+            "companyId": "c1",
+            "branchId": "b1",
+            "date": "2026-05-01",
+            "name": "National day A",
+            "kind": "national",
+            "observed": true
+          }
+        ]
+      },
+      "expected": { "working": false, "holiday": { "kind": "national", "name": "National day A" } }
+    },
+    {
+      "name": "a sibling branch keeps its company's negation",
+      "source": "holiday.md BR-HOL-002 — a branch row addresses one branch",
+      "input": {
+        "scope": { "companyId": "c1", "branchId": "b2" },
+        "date": "2026-05-01",
+        "rows": [
+          {
+            "companyId": null,
+            "branchId": null,
+            "date": "2026-05-01",
+            "name": "National day A",
+            "kind": "national",
+            "observed": true
+          },
+          {
+            "companyId": "c1",
+            "branchId": null,
+            "date": "2026-05-01",
+            "name": "National day A",
+            "kind": "national",
+            "observed": false
+          },
+          {
+            "companyId": "c1",
+            "branchId": "b1",
+            "date": "2026-05-01",
+            "name": "National day A",
+            "kind": "national",
+            "observed": true
+          }
+        ]
+      },
+      "expected": { "working": true }
+    },
+    {
+      "name": "two kinds on one date, both observed — national leads the display",
+      "source": "holiday.md BR-HOL-002 — display priority national > cuti_bersama > custom",
+      "input": {
+        "scope": { "companyId": "c1", "branchId": "b1" },
+        "date": "2026-12-25",
+        "rows": [
+          {
+            "companyId": "c1",
+            "branchId": null,
+            "date": "2026-12-25",
+            "name": "Company shutdown",
+            "kind": "custom",
+            "observed": true
+          },
+          {
+            "companyId": null,
+            "branchId": null,
+            "date": "2026-12-25",
+            "name": "National day B",
+            "kind": "national",
+            "observed": true
+          }
+        ]
+      },
+      "expected": { "working": false, "holiday": { "kind": "national", "name": "National day B" } }
+    },
+    {
+      "name": "negating one kind leaves the other standing",
+      "source": "holiday.md §9 — two kinds one date; negation is per kind",
+      "input": {
+        "scope": { "companyId": "c1", "branchId": "b1" },
+        "date": "2026-12-25",
+        "rows": [
+          {
+            "companyId": null,
+            "branchId": null,
+            "date": "2026-12-25",
+            "name": "National day B",
+            "kind": "national",
+            "observed": true
+          },
+          {
+            "companyId": "c1",
+            "branchId": null,
+            "date": "2026-12-25",
+            "name": "National day B",
+            "kind": "national",
+            "observed": false
+          },
+          {
+            "companyId": "c1",
+            "branchId": null,
+            "date": "2026-12-25",
+            "name": "Company shutdown",
+            "kind": "custom",
+            "observed": true
+          }
+        ]
+      },
+      "expected": {
+        "working": false,
+        "holiday": { "kind": "custom", "name": "Company shutdown" }
+      }
+    },
+    {
+      "name": "cuti bersama outranks a custom day for display",
+      "source": "holiday.md BR-HOL-002 — display priority",
+      "input": {
+        "scope": { "companyId": "c1", "branchId": "b1" },
+        "date": "2026-04-20",
+        "rows": [
+          {
+            "companyId": "c1",
+            "branchId": null,
+            "date": "2026-04-20",
+            "name": "Team offsite",
+            "kind": "custom",
+            "observed": true
+          },
+          {
+            "companyId": null,
+            "branchId": null,
+            "date": "2026-04-20",
+            "name": "Cuti bersama A",
+            "kind": "cuti_bersama",
+            "observed": true
+          }
+        ]
+      },
+      "expected": {
+        "working": false,
+        "holiday": { "kind": "cuti_bersama", "name": "Cuti bersama A" }
+      }
+    },
+    {
+      "name": "orphaned negation resolves to a working day rather than an error",
+      "source": "holiday.md §9 — deleting a target leaves a dangling negation; resolution ignores it",
+      "input": {
+        "scope": { "companyId": "c1", "branchId": "b1" },
+        "date": "2026-08-17",
+        "rows": [
+          {
+            "companyId": "c1",
+            "branchId": null,
+            "date": "2026-08-17",
+            "name": "National day C",
+            "kind": "national",
+            "observed": false
+          }
+        ]
+      },
+      "expected": { "working": true }
+    },
+    {
+      "name": "an orphaned negation does not suppress a different kind",
+      "source": "holiday.md §9 — defensive no-op, per kind",
+      "input": {
+        "scope": { "companyId": "c1", "branchId": "b1" },
+        "date": "2026-08-17",
+        "rows": [
+          {
+            "companyId": "c1",
+            "branchId": null,
+            "date": "2026-08-17",
+            "name": "National day C",
+            "kind": "national",
+            "observed": false
+          },
+          {
+            "companyId": null,
+            "branchId": null,
+            "date": "2026-08-17",
+            "name": "Cuti bersama B",
+            "kind": "cuti_bersama",
+            "observed": true
+          }
+        ]
+      },
+      "expected": {
+        "working": false,
+        "holiday": { "kind": "cuti_bersama", "name": "Cuti bersama B" }
+      }
+    },
+    {
+      "name": "a tenant-wide reader sees tenant-wide rows only",
+      "source": "holiday.md §7 — /resolved with no company resolves the tenant chain",
+      "input": {
+        "scope": { "companyId": null, "branchId": null },
+        "date": "2026-05-01",
+        "rows": [
+          {
+            "companyId": null,
+            "branchId": null,
+            "date": "2026-05-01",
+            "name": "National day A",
+            "kind": "national",
+            "observed": true
+          },
+          {
+            "companyId": "c1",
+            "branchId": null,
+            "date": "2026-05-01",
+            "name": "National day A",
+            "kind": "national",
+            "observed": false
+          }
+        ]
+      },
+      "expected": { "working": false, "holiday": { "kind": "national", "name": "National day A" } }
+    },
+    {
+      "name": "a date outside the row's date is not the row's business",
+      "source": "holiday.md BR-HOL-005 — dates are calendar dates, never shifted by a timezone",
+      "input": {
+        "scope": { "companyId": "c1", "branchId": "b1" },
+        "date": "2026-05-02",
+        "rows": [
+          {
+            "companyId": null,
+            "branchId": null,
+            "date": "2026-05-01",
+            "name": "National day A",
+            "kind": "national",
+            "observed": true
+          }
+        ]
+      },
+      "expected": { "working": true }
+    }
+  ]
+}
