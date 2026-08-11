@@ -80,3 +80,34 @@ Default vocabulary — `needs-triage`, `needs-info`, `ready-for-agent`, `ready-f
 ### Domain docs
 
 Single-context: `CONTEXT.md` (root glossary) + `docs/adr/`. See `docs/agents/domain.md`.
+
+<!-- rtk-instructions v2 -->
+# RTK — token-filtered commands
+
+Prefix a command with `rtk` and its output is filtered before it reaches context;
+a command RTK has no filter for passes through unchanged. Failures are not
+swallowed, and the unfiltered output is teed to
+`~/Library/Application Support/rtk/tee/`.
+
+Use it inside `&&` chains too: `rtk git add . && rtk git commit -m "msg"`.
+
+This is a documentation repository, so the useful filters are the git, GitHub and
+search ones:
+
+```bash
+rtk git status           # …and log, diff, show, add, commit, push — all subcommands pass through
+rtk gh pr view           # …and pr checks, run list, issue list, api
+rtk grep <pattern>       # …and ls, read, find — grouped by file/dir
+rtk err <cmd>            # errors only, from any command
+rtk summary <cmd>        # smart summary of any output
+rtk proxy <cmd>          # run unfiltered, for debugging
+rtk gain                 # savings stats
+```
+
+The handbook checks run as `node scripts/*.mjs`; RTK has no `node` filter, so wrap
+them as `rtk err node scripts/handbook-check.mjs` when you only want failures.
+
+Project-local filters live in `.rtk/filters.toml`. The stack-specific command lists
+(cargo, docker, kubectl, prisma, pytest, rspec…) were removed — none run here.
+`rtk init` re-adds the full list.
+<!-- /rtk-instructions -->
