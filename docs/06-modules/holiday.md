@@ -215,6 +215,7 @@ Events emitted (outbox): `holiday.calendar.changed` `{ companyId?, branchId?, da
 - **Import/Export:** ImportDefinition `holiday.calendar` — **registered in import-export §4.3 this session**: upsert on `(date, kind)`, tenant-wide, `partial` commit, template v1 (`date`, `name`, `kind`), rowHandler = this module's port. No ExportDefinition in V1 (the resolved GET + reports.md cover reads).
 - **Settings registered this session:** `holiday.cuti_bersama_deducts_leave` (boolean, company level, **effective-dated**, default `true` — BR-HOL-006, VERIFY marker there) → settings §4.2.
 - **Audit:** `holidays` → audit-log §4.2 audited-table registry (first channel-1 entry, this session).
+- **Ports served:** `HolidayQueryPort` (§4.2) — attendance, leave, overtime, and shift, which asks on the other three's behalf when it resolves a scheduled day. **Ports consumed:** `PeriodLockPort` (attendance.md §4.2 — BR-HOL-008), `OrgQueryPort.branchCompanyId` (§8's scope check), `OrgQueryPort.companyIds` (BR-HOL-008 over a tenant-wide row), `OrgQueryPort.placement` (the caller's branch, for the self-scoped reads). **Outbound reads** (ADR-0001 rule 6(d)): **`employee_directory`** — the caller's own company for §7's `/resolved` and `/sync`, which answer *"my scope"* and therefore need the employment behind a login. *(Added 2026-08-11 with the module's implementation; the three `OrgQueryPort` entries were added to organization.md §4.2 in the same session as its first caller.)*
 
 ## 14. Test Scenarios
 

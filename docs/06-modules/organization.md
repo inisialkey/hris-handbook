@@ -211,6 +211,28 @@ export interface OrgQueryPort {
    */
   directReports(employeeId: string, asOf: string): Promise<string[]>;
   /**
+   * The company a live branch belongs to, `null` when none does (added 2026-08-11,
+   * holiday.md's first caller). §8 of that document asks every scoped row for a
+   * branch *"resolvable in caller scope"*, and the branch FK is tenant-wide: a
+   * branch of another company inserts cleanly and then addresses a scope chain
+   * resolution never walks.
+   *
+   * One method rather than a boolean `branchExists`, because every caller asking
+   * whether a branch exists is really asking whether it belongs to the company it
+   * was named beside, and a `true` that does not answer that is a check somebody
+   * has to remember to pair.
+   */
+  branchCompanyId(branchId: string): Promise<string | null>;
+  /**
+   * Every live company of the tenant, ids only (added 2026-08-11, holiday.md's
+   * first caller). `PeriodLockPort` answers about **one** company (attendance.md
+   * §4.2) while a tenant-wide holiday row addresses all of them at once, so
+   * BR-HOL-008's check enumerates. Unpaginated deliberately: a tenant has a
+   * handful of companies, and a page would make the caller's loop wrong rather
+   * than slow.
+   */
+  companyIds(): Promise<string[]>;
+  /**
    * Audience resolution over placement (announcement.md BR-ANN-002 — added 2026-08-03).
    * Rules union; a `departmentIds` entry **descends its subtree**, `positionIds` and
    * `jobLevelIds` match exactly. An empty rule set means everyone in scope.
